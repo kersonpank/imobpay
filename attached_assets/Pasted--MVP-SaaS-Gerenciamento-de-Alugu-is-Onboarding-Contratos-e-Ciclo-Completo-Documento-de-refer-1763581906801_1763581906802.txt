@@ -1,0 +1,378 @@
+# MVP SaaS: Gerenciamento de Aluguéis — Onboarding, Contratos e Ciclo Completo
+
+Documento de referência completo para um **MVP** que automatiza o onboarding de locador/locatário, geração de contrato por IA, upload de contratos assinados, contas a receber, gateway de pagamento, confirmação de pagamento, vistoria de entrega e renovação.
+
+> Este documento contém: requisitos do produto, modelo de dados, endpoints API sugeridos, telas/UX, templates de prompts para a IA que gera contratos, template de contrato dinâmico (placeholders), fluxo de onboarding, automações, integrações de pagamento e checklist de vistoria.
+
+---
+
+## 1. Visão do MVP (escopo)
+
+Objetivo: Permitir que um **locador** cadastre um imóvel; um **locatário** faça onboarding; o sistema gere contrato automaticamente (IA), gerencie garantias, gere cobranças mensais com gateway, confirme pagamentos, armazene contratos assinados (upload), e acompanhe o ciclo até a devolução do imóvel ou renovação do contrato.
+
+MVP mínimo viável:
+
+* Cadastro de locador (login) e locatário (login)
+* Cadastro de imóvel com fotos e descrição
+* Onboarding do locatário: coleta de dados e documentos
+* Escolha de garantia (fiador/caução/sem garantia)
+* Geração automática de contrato por IA (com placeholders preenchidos)
+* Visualização e download do contrato em PDF
+* Upload do contrato assinado por locador/locatário
+* Contas a receber (cronograma de pagamentos) + envio de boletos/links de pagamento (gateway)
+* Confirmação automática de pagamento via webhook
+* Vistoria inicial (checklist + fotos) e vistoria de entrega
+* Notificações por e-mail/WhatsApp para vencimentos, inadimplência, renovação
+
+---
+
+## 2. Personas / Roles
+
+* **Admin**: configura integrações e supervisiona
+* **Locador**: cadastra imóvel, assina contrato, recebe notificações
+* **Locatário**: fornece dados, assina contrato, realiza pagamentos
+* **Fiador (opcional)**: fornece documentos e assina quando necessário
+* **Sistema IA**: gera contrato e cláusulas personalizadas
+
+---
+
+## 3. Fluxo de alto nível
+
+1. Locador cria conta e cadastra imóvel (fotos + descrição + valor do aluguel + políticas)
+2. Locador convida locatário (link) ou locatário solicita anúncio
+3. Locatário completa onboarding (dados, documentos, opção de garantia)
+4. Sistema valida (opcional: verificação de CPF / checagem básica)
+5. IA gera contrato com base em um prompt e dados coletados
+6. Locador e locatário revisam e assinam (assinado fisicamente e fazem upload) ou assinam digitalmente (integração de assinatura eletrônica)
+7. Sistema gera cronograma de pagamentos (contas a receber) e cria cobranças no gateway
+8. Pagamentos confirmados via webhook -> marca pagamento como recebido
+9. Sistema envia lembretes e relatórios
+10. No término do contrato: vistoria final -> opcional renovação -> novo contrato
+
+---
+
+## 4. Campos do Onboarding (dados a coletar)
+
+### Locador
+
+* Nome completo
+* CPF/CNPJ
+* RG/CNH
+* Data de nascimento
+* Estado civil
+* Endereço residencial
+* Telefone (WhatsApp) e e-mail
+* Dados bancários para pagamento (opcional)
+* Documentos: RG, CPF e comprovante de endereço
+
+### Locatário
+
+* Nome completo
+* CPF
+* RG/CNH
+* Data de nascimento
+* Estado civil
+* Profissão
+* Renda mensal (comprovante)
+* Endereço atual
+* Telefone (WhatsApp) e e-mail
+* Documentos: RG, CPF, comprovante de residência, comprovante de renda
+* Escolha de garantia: fiador (coletar dados do fiador), caução, seguro-fiança, sem garantia
+
+### Fiador (se aplicável)
+
+* Mesmos dados do locatário + comprovante de renda + documento do imóvel (opcional)
+
+---
+
+## 5. Template dinâmico de contrato (placeholders)
+
+O contrato deve ser um documento texto com placeholders que a IA preenchera e poderá personalizar linguagem e cláusulas. Use chaves `{{ }}`.
+
+Exemplo (trecho):
+
+> CONTRATO DE LOCAÇÃO RESIDENCIAL
+>
+> LOCADOR: {{LOCADOR_NOME}}, CPF: {{LOCADOR_CPF}}, residente em {{LOCADOR_ENDERECO}}.
+>
+> LOCATÁRIO: {{LOCATARIO_NOME}}, CPF: {{LOCATARIO_CPF}}, residente em {{LOCATARIO_ENDERECO}}.
+>
+> IMÓVEL: {{IMOVEL_ENDERECO}} — {{IMOVEL_DESCRICAO}}.
+>
+> VALOR DO ALUGUEL: R$ {{ALUGUEL_VALOR}} mensais, vencimento todo dia {{VENCIMENTO_DIA}}.
+>
+> DURAÇÃO: {{PERIODO_MES}} meses (início {{DATA_INICIO}} — término {{DATA_TERMINO}}).
+>
+> REAJUSTE: anual pelo índice {{REAJUSTE_INDICE}}.
+>
+> GARANTIA: {{GARANTIA_TIPO}} (detalhes: {{GARANTIA_DETALHES}}).
+>
+> MULTA RESCISÓRIA: {{MULTA_RESCISAO}} (cláusula proporcional ao tempo restante).
+>
+> IPTU: {{RESPONSAVEL_IPTU}}.
+>
+> ÁGUA/ENERGIA/CONDOMÍNIO: {{RESPONSAVEL_UTILIDADES}}.
+
+No template inclua seções para: vistoria inicial, responsabilidades por manutenção, seguro contra incêndio (se exigido), permissão de animais, sublocação, aviso prévio, foro.
+
+---
+
+## 6. Prompt para a IA (Gerador de Contrato) — **System / Assistant prompt**
+
+> **System prompt (modelo IA):**
+> "Você é um gerador de contratos de locação residencial em língua portuguesa. Receberá um JSON com dados do locador, locatário, imóvel e preferências contratuais. Gere um contrato formal, claro e objetivo, usando linguagem acessível, com cláusulas essenciais: identificação, objeto, prazo, aluguel, reajuste, garantias, responsabilidades, multas, vistoria inicial e final, entrega do imóvel e renovação. Sempre mantenha placeholders preenchidos conforme os dados. Se alguma informação estiver faltando, gere uma nota indicando o campo faltante. Inclua um resumo em 5 linhas no início com os pontos principais (valor, início, término, garantia e vencimento)."
+
+> **User prompt (exemplo):**
+> "Gerar contrato com o JSON a seguir: \n```json
+> {
+> "locador": {"nome":"João Silva","cpf":"000.000.000-00","endereco":"Rua A, 1"},
+> "locatario": {"nome":"Maria Souza","cpf":"111.111.111-11","endereco":"Rua B, 2"},
+> "imovel": {"endereco":"Av X, 100","descricao":"casa 2 quartos, sala, cozinha, banheiro"},
+> "aluguel_valor":750.0,
+> "vencimento_dia":5,
+> "periodo_meses":24,
+> "data_inicio":"2025-12-01",
+> "reajuste_indice":"IPCA",
+> "garantia":{"tipo":"caucao","valor":2250}
+> }
+>
+> ```"
+> ```
+
+> **Requisitos de saída:**
+>
+> * Um contrato em texto pronto para converter em PDF.
+> * Um bloco JSON `metadados` com campos: `data_inicio`, `data_termino`, `parcelas` (lista de objetos com vencimento e valor), `valor_total`, `garantia`.
+
+---
+
+## 7. Exemplo de JSON de saída (metadados)
+
+```json
+{
+  "data_inicio":"2025-12-01",
+  "data_termino":"2027-11-30",
+  "parcelas":[{"numero":1,"vencimento":"2025-12-05","valor":750.0}, ...],
+  "valor_total":18000.0,
+  "garantia":{"tipo":"caucao","valor":2250}
+}
+```
+
+---
+
+## 8. Modelo de dados (SQL simplificado)
+
+```sql
+-- users
+users(id, role ENUM('admin','locador','locatario','fiador'), name, cpf, email, phone, password_hash, created_at)
+
+-- properties
+properties(id, owner_id REFERENCES users(id), title, description, address, city, state, zipcode, photos JSON, rent_value, created_at)
+
+-- contracts
+contracts(id, property_id, landlord_id, tenant_id, guarantor_id NULLABLE, start_date, end_date, monthly_rent, reajuste, garantia JSON, status ENUM('draft','generated','signed','active','terminated','renewal_pending'), contract_pdf_path, created_at)
+
+-- payments (contas a receber)
+payments(id, contract_id, due_date, amount, status ENUM('pending','paid','overdue','canceled'), gateway_id, external_payment_id, paid_at)
+
+-- inspections
+inspections(id, contract_id, type ENUM('initial','final'), inspector_id, items JSON (checklist + photos), created_at)
+
+-- documents
+documents(id, user_id, contract_id NULLABLE, type, path, uploaded_at)
+```
+
+---
+
+## 9. Endpoints sugeridos (REST)
+
+* `POST /api/auth/register` — registrar usuário (locador/locatário)
+* `POST /api/auth/login` — login -> retorna JWT
+* `GET /api/properties` — listar imóveis
+* `POST /api/properties` — criar imóvel (locador)
+* `GET /api/properties/{id}` — detalhes
+* `POST /api/tenancy/onboard` — criar onboarding do locatário (dados + documentos)
+* `POST /api/contracts/generate` — gera contrato via IA (recebe IDs)
+* `GET /api/contracts/{id}` — obter contrato e metadados
+* `POST /api/contracts/{id}/upload_signed` — upload do contrato assinado
+* `POST /api/contracts/{id}/sign/e-sign` — iniciar assinatura eletrônica (integração)
+* `GET /api/contracts/{id}/payments` — listar contas a receber
+* `POST /api/payments/{id}/create_payment_link` — criar link ou boleto via gateway
+* `POST /api/webhooks/payments` — webhook de confirmação do gateway
+* `POST /api/inspections/{id}` — subir vistoria com fotos
+* `POST /api/contracts/{id}/renew` — solicitar renovação
+
+---
+
+## 10. Webhooks e automações
+
+* **Payment Webhook (gateway):** quando `paid` -> atualizar `payments.status` para `paid` e gerar recibo; notificar locador e locatário.
+* **Vencimento próximo:** agendar cron diário para detectar vencimentos em `n` dias e enviar lembretes (e-mail/WhatsApp).
+* **Inadimplência:** após X dias, enviar notificação e aplicar multa (conforme contrato).
+* **Contrato expirando:** 60/30/15 dias antes -> enviar sugestão de renovação.
+
+---
+
+## 11. Gateways de pagamento (sugestão)
+
+* Para Brasil: Stripe (suporta boleto via integração), PagSeguro, Pagar.me ou Gerencianet. Escolha um que ofereça boletos, links de pagamento e webhooks.
+* Integre também com PIX (muito usado) via gateway.
+
+> Observação: no MVP você pode começar criando `links de pagamento` ou `boletos` sem conciliação bancária automática — a confirmação virá via webhook.
+
+---
+
+## 12. UI / Telas principais (Wireframes descritos)
+
+1. **Landing / Signup** — escolha entre locador/locatário
+2. **Dashboard Locador** — lista de imóveis, contratos, pagamentos pendentes, notificações
+3. **Dashboard Locatário** — contratos ativos, próximos vencimentos, enviar documentos
+4. **Cadastro Imóvel** — form, upload de fotos
+5. **Onboarding Locatário** — formulário com upload de documentos
+6. **Gerar Contrato** — tela de revisão e botão "Gerar contrato" (preview em PDF)
+7. **Assinatura / Upload** — opção de integrar e-sign ou upload do PDF assinado
+8. **Contas a Receber** — calendário de vencimentos, gerar boleto/link
+9. **Vistoria** — checklist com upload de fotos (initial/final)
+10. **Renovação** — fluxo para gerar novo contrato com dados pré-preenchidos
+
+---
+
+## 13. Template de e-mails e mensagens (exemplos)
+
+* **Bem-vindo (locador)**: "Seu imóvel {{property_title}} foi cadastrado com sucesso."
+* **Solicitação de documentos (locatário)**: "Precisamos dos documentos: RG, CPF, comprovante de renda."
+* **Contrato gerado**: "Contrato gerado: [link para visualizar]. Favor assinar e enviar o arquivo."
+* **Lembrete de vencimento**: "Lembrete: aluguel R$ {{valor}} vence dia {{dia}} — pagar aqui: {{link}}"
+* **Confirmação de pagamento**: "Pagamento confirmado para a parcela {{n}} — obrigado!"
+
+---
+
+## 14. Assinatura eletrônica (opções)
+
+* Para MVP: usar integração com **DocuSign**, **Adobe Sign** ou serviços brasileiros como **Clicksign**. Alternativa: permitir upload do PDF assinado fisicamente.
+
+---
+
+## 15. Vistoria (checklist sugerido)
+
+* Estado das paredes (pintura)
+* Pisos (rachaduras/manchas)
+* Portas e janelas (fechamento)
+* Pia/cozinha (vazamentos)
+* Banheiro (vaso, box, azulejos)
+* Iluminação e tomadas
+* Itens inventariados (se houver móveis)
+
+Cada item: `OK / NECESSITA_REPARO / OBS` + foto (obrigatório em pontos críticos).
+
+---
+
+## 16. Regras de negócios importantes
+
+* Reajuste: definir índice (IPCA ou IGP-M) e periodicidade anual.
+* Multa por atraso: definir percentual (ex.: 2% + juros 1% ao mês)
+* Caução: armazenada como valor financeiro (ou devolvida ao final)
+* Rescisão antecipada: multa proporcional ou valor fixo (definido no contrato)
+* Comprovantes: todos os uploads devem registrar metadados (upload_by, timestamp, hash)
+
+---
+
+## 17. Prompt completo do MVP — Arquivo de configuração para agentes (Ex: Flowise / ChatOps)
+
+Use os seguintes prompts prontos para os agentes do fluxo:
+
+### 17.1 Agent: `onboarding-collector`
+
+**System prompt:** "Você é um coletor de informações para onboarding de locatários. Receba dados do usuário via formulário e valide campos obrigatórios. Se faltar algo, retorne lista de campos faltantes."
+
+**User prompt padrão:** "Colete: nome, cpf, rg, data_nascimento, estado_civil, profissao, renda, endereco_atual, telefone, email, docs (RG, CPF, comprovante_residencia, comprovante_renda)."
+
+### 17.2 Agent: `contract-generator`
+
+**System prompt:** use o prompt da seção 6 (IA gerador de contrato). Recebe JSON e retorna documento + `metadados`.
+
+### 17.3 Agent: `payment-manager`
+
+**System prompt:** "Gerencie contas a receber: gere parcelas, crie links no gateway, monitore webhooks e atualize status. Envie notificações em casos de atraso."
+
+### 17.4 Agent: `inspection-agent`
+
+**System prompt:** "Receba fotos + checklist do inspetor, gere um sumário com itens críticos e atribua ações (reparo/imediato)."
+
+---
+
+## 18. Exemplo de contas de teste (dummy) — NÃO USAR EM PRODUÇÃO
+
+* **Locador (teste)**
+
+  * email: `locador.teste@example.com`
+  * senha: `Senhateste123!`
+
+* **Locatário (teste)**
+
+  * email: `locatario.teste@example.com`
+  * senha: `Senhateste123!`
+
+> Use contas dummy apenas para testes locais. No production, force verificação de e-mail e MFA.
+
+---
+
+## 19. Critérios de aceitação do MVP
+
+* Locador consegue cadastrar imóvel e convidar locatário.
+* Locatário completa onboarding e envia documentos.
+* Sistema gera contrato com IA e cria cronograma de pagamentos.
+* Link de pagamento / boleto é gerado e, ao confirmar pagamento via webhook, o status muda para `paid`.
+* Upload do contrato assinado fica anexado ao contrato no sistema.
+* Vistoria inicial e final podem ser registradas com fotos.
+
+---
+
+## 20. Tecnologias sugeridas (stack)
+
+* Backend: Node.js (Express) ou Python (FastAPI)
+* Banco: PostgreSQL (ou Supabase se preferir hospedagem gerenciada)
+* Autenticação: JWT + refresh tokens
+* Armazenamento de arquivos: S3-compatible (DigitalOcean Spaces / AWS S3)
+* IA: OpenAI (ou outro fornecedor) via API para gerar texto do contrato
+* Pagamentos: Stripe, Pagar.me, Gerencianet (PIX/boletos)
+* Assinatura Eletrônica: Clicksign / DocuSign
+* Infra: Docker, deploy via Render / Railway / DigitalOcean
+
+---
+
+## 21. Checklist de Segurança e Conformidade
+
+* Criptografar dados sensíveis em trânsito e em repouso
+* Política de retenção de documentos (ex.: 5 anos)
+* Proteção de dados pessoais (LGPD): informar finalidade, consentimento, formar um termo de uso
+* Logs de auditoria para ações críticas (assinatura, pagamento, rescisão)
+
+---
+
+## 22. Próximos passos recomendados
+
+1. Montar um protótipo UI (figma/wireframes)
+2. Implementar API básica de auth + CRUD de imóveis
+3. Conectar IA para geração de contrato com um template simples
+4. Integrar gateway de pagamento (modo sandbox) e webhooks
+5. Implementar upload de documentos e vistoria
+6. Testes end-to-end com dois usuários reais
+
+---
+
+### Anexos úteis (copiar para produção)
+
+* Template de contrato (arquivo `.docx`/`.md`) — use o template da seção 5 e adapte
+* Prompt do `contract-generator` (cole no Flowise)
+* SQL inicial para criar tabelas (use o bloco da seção 8)
+
+---
+
+Se quiser, eu já gero para você agora:
+
+* O template final de contrato em `.md` pronto para conversão em PDF; ou
+* Os prompts formatados para importar direto no Flowise; ou
+* Um esquema de banco em SQL pronto para rodar.
+
+Diga qual desses você quer que eu gere agora e eu crio (arquivo pronto para download).
