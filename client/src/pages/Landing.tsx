@@ -1,12 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, FileText, DollarSign, Shield } from "lucide-react";
+import { Link } from "wouter";
 
 export default function Landing() {
-  const handleLogin = () => {
-    window.location.href = "/api/login";
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted">
       <div className="container mx-auto px-4 py-16">
@@ -19,10 +16,17 @@ export default function Landing() {
             Plataforma completa para gerenciamento de aluguéis com geração automática de contratos,
             integração com Mercado Pago e muito mais.
           </p>
-          <div className="mt-8">
-            <Button size="lg" onClick={handleLogin} data-testid="button-login">
-              Entrar com Replit
-            </Button>
+          <div className="mt-8 flex gap-4 justify-center">
+            <Link href="/login">
+              <Button size="lg" data-testid="button-login">
+                Entrar
+              </Button>
+            </Link>
+            <Link href="/register">
+              <Button size="lg" variant="outline" data-testid="button-register">
+                Criar Conta
+              </Button>
+            </Link>
           </div>
         </div>
 
