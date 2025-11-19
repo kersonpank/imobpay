@@ -8,8 +8,7 @@ import {
   tenantSettings,
   onboardingData,
   type User,
-  type InsertUser,
-  type UpsertUser,
+  type UpdateUser,
   type Property,
   type InsertProperty,
   type Contract,
@@ -29,9 +28,8 @@ export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
-  upsertUser(user: UpsertUser): Promise<User>;
-  createUser(user: InsertUser): Promise<User>;
-  updateUser(id: string, data: Partial<InsertUser>): Promise<User | undefined>;
+  createUserWithPassword(email: string, passwordHash: string, firstName?: string, lastName?: string): Promise<User>;
+  updateUser(id: string, data: UpdateUser): Promise<User | undefined>;
 
   // Properties
   getProperty(id: string): Promise<Property | undefined>;
@@ -83,27 +81,22 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async upsertUser(userData: UpsertUser): Promise<User> {
-    const result = await db
-      .insert(users)
-      .values(userData)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          ...userData,
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
+  async createUserWithPassword(
+    email: string, 
+    passwordHash: string,
+    firstName?: string,
+    lastName?: string
+  ): Promise<User> {
+    const result = await db.insert(users).values({
+      email: email.toLowerCase(),
+      passwordHash,
+      firstName,
+      lastName,
+    }).returning();
     return result[0];
   }
 
-  async createUser(user: InsertUser): Promise<User> {
-    const result = await db.insert(users).values(user).returning();
-    return result[0];
-  }
-
-  async updateUser(id: string, data: Partial<InsertUser>): Promise<User | undefined> {
+  async updateUser(id: string, data: UpdateUser): Promise<User | undefined> {
     const result = await db.update(users).set(data).where(eq(users.id, id)).returning();
     return result[0];
   }
