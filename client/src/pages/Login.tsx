@@ -106,10 +106,8 @@ export default function Login() {
 
             <div className="text-center text-sm text-muted-foreground">
               Não tem uma conta?{" "}
-              <Link href="/register">
-                <a className="text-primary hover:underline" data-testid="link-register">
-                  Criar conta
-                </a>
+              <Link href="/register" className="text-primary hover:underline" data-testid="link-register">
+                Criar conta
               </Link>
             </div>
           </form>

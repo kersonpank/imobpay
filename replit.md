@@ -14,11 +14,13 @@ AlugaFácil is a SaaS platform for managing rental properties with automated con
 
 **Current Implementation Status (November 2025):**
 - ✅ Database schema fully implemented and synchronized
-- ✅ Replit Auth integration working with session management
-- ✅ User authentication flow: Landing → Login → Role Onboarding → Dashboard
+- ✅ Custom email/password authentication system (replaced Replit Auth)
+- ✅ User authentication flow: Landing → Register/Login → Role Onboarding → Dashboard
 - ✅ Role-based access control (landlord vs tenant dashboards)
 - ✅ Backend API routes for properties, contracts, payments (CRUD operations)
 - ✅ Frontend prototypes for all main pages
+- ✅ Secure password hashing with bcrypt (salt rounds = 12)
+- ✅ Comprehensive error handling for duplicate email/CPF constraints
 - 🚧 Object Storage integration prepared but not yet connected to UI
 - 🚧 OpenAI contract generation prepared but not yet implemented
 - 🚧 Mercado Pago integration schema ready but not yet implemented
@@ -77,15 +79,28 @@ Preferred communication style: Simple, everyday language.
 
 ### Authentication & Authorization
 
-**Provider:** Replit Auth (OpenID Connect)
+**Provider:** Custom email/password authentication system (replaced Replit Auth)
 
-**Session Storage:** PostgreSQL-backed sessions with server-side session validation
+**Session Storage:** PostgreSQL-backed sessions with server-side session validation using express-session and connect-pg-simple
+
+**Password Security:** Bcrypt hashing with salt rounds = 12 for secure password storage
 
 **Authorization Pattern:** Role-based access control (RBAC) with user roles stored in database. Middleware `isAuthenticated` checks session validity before allowing access to protected routes. Client-side routing redirects based on user role and onboarding completion status.
 
+**Authentication Endpoints:**
+- POST /api/auth/register - Create new user account with email/password
+- POST /api/auth/login - Authenticate user and create session
+- POST /api/auth/logout - Destroy session and log out user
+- GET /api/auth/user - Get current authenticated user (protected)
+
+**Error Handling:** 
+- Duplicate email/CPF constraints return 409 status with user-friendly Portuguese messages
+- Invalid credentials return 401 with appropriate message
+- Form validation errors return 400 with specific field errors
+
 **User Flow:**
-1. Unauthenticated users see landing page
-2. Login redirects to `/api/login` (Replit Auth)
+1. Unauthenticated users see landing page with "Entrar" and "Criar Conta" buttons
+2. Registration creates account and automatically logs in user
 3. New users without role are redirected to `/onboarding` to select landlord/tenant
 4. Authenticated users with roles access their respective dashboards
 
