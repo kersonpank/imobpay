@@ -15,7 +15,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const existingUser = await storage.getUserByEmail(validatedData.email);
       if (existingUser) {
-        return res.status(400).json({ message: "Email já cadastrado" });
+        return res.status(409).json({ message: "Email já cadastrado" });
       }
 
       const passwordHash = await hashPassword(validatedData.password);
@@ -32,6 +32,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error registering user:", error);
       if (error.name === 'ZodError') {
         return res.status(400).json({ message: error.errors[0].message });
+      }
+      if (error.code === '23505') {
+        if (error.constraint === 'users_email_unique') {
+          return res.status(409).json({ message: "Este email já está cadastrado" });
+        }
+        if (error.constraint === 'users_cpf_unique') {
+          return res.status(409).json({ message: "Este CPF já está cadastrado" });
+        }
+        return res.status(409).json({ message: "Dados já cadastrados" });
       }
       res.status(500).json({ message: "Erro ao criar conta" });
     }
@@ -104,6 +113,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error updating user:", error);
       if (error.name === 'ZodError') {
         return res.status(400).json({ message: error.errors[0].message });
+      }
+      if (error.code === '23505') {
+        if (error.constraint === 'users_cpf_unique') {
+          return res.status(409).json({ message: "Este CPF já está cadastrado" });
+        }
+        if (error.constraint === 'users_email_unique') {
+          return res.status(409).json({ message: "Este email já está cadastrado" });
+        }
+        return res.status(409).json({ message: "Dados já cadastrados" });
       }
       res.status(500).json({ message: "Failed to update user" });
     }
