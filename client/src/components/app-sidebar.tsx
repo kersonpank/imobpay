@@ -20,9 +20,8 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 
-// Mock user data
 const landlordMenu = [
   { title: "Dashboard", url: "/landlord", icon: Home },
   { title: "Meus Imóveis", url: "/landlord/properties", icon: Building2 },
@@ -33,9 +32,7 @@ const landlordMenu = [
 
 const tenantMenu = [
   { title: "Dashboard", url: "/tenant", icon: Home },
-  { title: "Meu Contrato", url: "/tenant/contract", icon: FileText },
-  { title: "Pagamentos", url: "/tenant/payments", icon: DollarSign },
-  { title: "Vistoria", url: "/tenant/inspection", icon: ClipboardCheck },
+  { title: "Onboarding", url: "/tenant/onboarding", icon: ClipboardCheck },
 ];
 
 interface AppSidebarProps {
@@ -44,7 +41,7 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ userRole, userName = "Usuário" }: AppSidebarProps) {
-  const [location, setLocation] = useLocation();
+  const [location] = useLocation();
   const menu = userRole === "landlord" ? landlordMenu : tenantMenu;
 
   return (
@@ -72,16 +69,10 @@ export function AppSidebar({ userRole, userName = "Usuário" }: AppSidebarProps)
                     isActive={location === item.url}
                     data-testid={`link-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
                   >
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setLocation(item.url);
-                      }}
-                    >
+                    <Link href={item.url}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
-                    </a>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
