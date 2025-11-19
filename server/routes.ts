@@ -27,7 +27,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
 
       req.session.userId = user.id;
-      res.json({ id: user.id, email: user.email, role: user.role });
+      req.session.save((err) => {
+        if (err) {
+          console.error("Error saving session:", err);
+          return res.status(500).json({ message: "Erro ao salvar sessão" });
+        }
+        res.json({ id: user.id, email: user.email, role: user.role });
+      });
     } catch (error: any) {
       console.error("Error registering user:", error);
       if (error.name === 'ZodError') {
@@ -61,7 +67,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       req.session.userId = user.id;
-      res.json({ id: user.id, email: user.email, role: user.role });
+      req.session.save((err) => {
+        if (err) {
+          console.error("Error saving session:", err);
+          return res.status(500).json({ message: "Erro ao salvar sessão" });
+        }
+        res.json({ id: user.id, email: user.email, role: user.role });
+      });
     } catch (error: any) {
       console.error("Error logging in:", error);
       if (error.name === 'ZodError') {
