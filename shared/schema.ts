@@ -31,13 +31,13 @@ export const contractStatusEnum = pgEnum("contract_status", ["draft", "generated
 export const paymentStatusEnum = pgEnum("payment_status", ["pending", "paid", "overdue", "canceled"]);
 export const guaranteeTypeEnum = pgEnum("guarantee_type", ["fiador", "caucao", "seguro", "nenhuma"]);
 
-// Users table (adapted for Replit Auth)
+// Users table (custom authentication)
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: varchar("email").unique(),
-  firstName: varchar("first_name"),
-  lastName: varchar("last_name"),
-  profileImageUrl: varchar("profile_image_url"),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  passwordHash: varchar("password_hash", { length: 255 }).notNull(),
+  firstName: varchar("first_name", { length: 100 }),
+  lastName: varchar("last_name", { length: 100 }),
   cpf: text("cpf").unique(),
   phone: text("phone"),
   role: userRoleEnum("role"),
@@ -45,25 +45,38 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// Schema for upserting users (Replit Auth)
-export const upsertUserSchema = createInsertSchema(users).pick({
+// Schema for user registration
+export const registerUserSchema = z.object({
+  email: z.string().email("Email inválido").toLowerCase(),
+  password: z.string()
+    .min(8, "A senha deve ter no mínimo 8 caracteres")
+    .regex(/[A-Z]/, "A senha deve conter pelo menos uma letra maiúscula")
+    .regex(/[a-z]/, "A senha deve conter pelo menos uma letra minúscula")
+    .regex(/[0-9]/, "A senha deve conter pelo menos um número"),
+  firstName: z.string().min(2, "Nome deve ter no mínimo 2 caracteres").optional(),
+  lastName: z.string().min(2, "Sobrenome deve ter no mínimo 2 caracteres").optional(),
+});
+
+export type RegisterUser = z.infer<typeof registerUserSchema>;
+
+// Schema for user login
+export const loginUserSchema = z.object({
+  email: z.string().email("Email inválido").toLowerCase(),
+  password: z.string().min(1, "Senha é obrigatória"),
+});
+
+export type LoginUser = z.infer<typeof loginUserSchema>;
+
+// Schema for updating user profile
+export const updateUserSchema = createInsertSchema(users).omit({ 
   id: true,
   email: true,
-  firstName: true,
-  lastName: true,
-  profileImageUrl: true,
-});
-
-export type UpsertUser = z.infer<typeof upsertUserSchema>;
-
-// Schema for inserting users (manual registration)
-export const insertUserSchema = createInsertSchema(users).omit({ 
-  id: true, 
+  passwordHash: true,
   createdAt: true,
   updatedAt: true 
-});
+}).partial();
 
-export type InsertUser = z.infer<typeof insertUserSchema>;
+export type UpdateUser = z.infer<typeof updateUserSchema>;
 export type User = typeof users.$inferSelect;
 
 // Properties table
