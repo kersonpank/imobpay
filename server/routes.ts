@@ -23,7 +23,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/user', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const updatedUser = await storage.updateUser(userId, req.body);
+      console.log("[PATCH /api/user] userId:", userId, "body:", req.body);
+      const updatedUser = await storage.updateUser(userId, { ...req.body, updatedAt: new Date() });
+      console.log("[PATCH /api/user] updatedUser:", updatedUser);
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
       res.json(updatedUser);
     } catch (error) {
       console.error("Error updating user:", error);

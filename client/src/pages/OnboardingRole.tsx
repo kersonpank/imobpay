@@ -18,11 +18,7 @@ export default function OnboardingRole() {
 
   const mutation = useMutation({
     mutationFn: async (data: { role: "landlord" | "tenant"; cpf: string; phone: string }) => {
-      await apiRequest("/api/user", {
-        method: "PATCH",
-        body: JSON.stringify(data),
-        headers: { "Content-Type": "application/json" },
-      });
+      await apiRequest("PATCH", "/api/user", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
