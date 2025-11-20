@@ -19,14 +19,22 @@ export default function Register() {
 
   const mutation = useMutation({
     mutationFn: async (data: { email: string; password: string; firstName?: string; lastName?: string }) => {
+      console.log('[Register] Submitting registration');
       const res = await apiRequest("POST", "/api/auth/register", data);
       return res.json();
     },
-    onSuccess: (user) => {
+    onSuccess: async (user) => {
+      console.log('[Register] Registration successful:', user);
       queryClient.setQueryData(["/api/auth/user"], user);
+      
+      // Garantir que o cache está atualizado fazendo um refetch
+      await queryClient.refetchQueries({ queryKey: ["/api/auth/user"] });
+      
+      console.log('[Register] Redirecting to onboarding');
       setLocation("/onboarding");
     },
     onError: (error: any) => {
+      console.error('[Register] Error:', error);
       toast({
         title: "Erro ao criar conta",
         description: error.message || "Não foi possível criar sua conta. Tente novamente.",

@@ -18,20 +18,25 @@ export default function OnboardingRole() {
 
   const mutation = useMutation({
     mutationFn: async (data: { role: "landlord" | "tenant"; cpf: string; phone: string }) => {
-      await apiRequest("PATCH", "/api/user", data);
+      console.log('[OnboardingRole] Submitting data:', data);
+      const response = await apiRequest("PATCH", "/api/user", data);
+      return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+    onSuccess: (data) => {
+      console.log('[OnboardingRole] Success! Updated user:', data);
+      queryClient.setQueryData(["/api/auth/user"], data);
       toast({
         title: "Perfil atualizado!",
         description: "Seu perfil foi configurado com sucesso.",
       });
       setLocation(selectedRole === "landlord" ? "/landlord" : "/tenant");
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error('[OnboardingRole] Error updating profile:', error);
+      const errorMessage = error.message || "Não foi possível atualizar seu perfil. Tente novamente.";
       toast({
-        title: "Erro",
-        description: "Não foi possível atualizar seu perfil. Tente novamente.",
+        title: "Erro ao atualizar perfil",
+        description: errorMessage,
         variant: "destructive",
       });
     },

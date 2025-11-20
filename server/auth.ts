@@ -21,6 +21,7 @@ const SALT_ROUNDS = 12;
 export async function setupAuth(app: Express): Promise<void> {
   app.use(
     session({
+      name: 'alugafacil.sid',
       store: new PgSession({
         conString: process.env.DATABASE_URL,
         tableName: 'sessions',
@@ -30,13 +31,18 @@ export async function setupAuth(app: Express): Promise<void> {
       resave: false,
       saveUninitialized: false,
       cookie: {
+        path: '/',
         maxAge: 7 * 24 * 60 * 60 * 1000,
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
+        domain: undefined,
       },
+      proxy: process.env.NODE_ENV === 'production',
     })
   );
+  
+  console.log('[Auth] Session middleware configured with cookie name: alugafacil.sid');
 }
 
 export function isAuthenticated(
@@ -44,11 +50,18 @@ export function isAuthenticated(
   res: Response,
   next: NextFunction
 ): void {
+  console.log('[isAuthenticated] Path:', req.path);
+  console.log('[isAuthenticated] Session ID:', req.sessionID);
+  console.log('[isAuthenticated] Session data:', JSON.stringify(req.session));
+  console.log('[isAuthenticated] Cookie header:', req.headers.cookie);
+  
   if (!req.session?.userId) {
+    console.log('[isAuthenticated] ❌ No userId in session - returning 401');
     res.status(401).json({ message: "Unauthorized" });
     return;
   }
   
+  console.log('[isAuthenticated] ✅ Authenticated userId:', req.session.userId);
   (req as AuthenticatedRequest).userId = req.session.userId;
   next();
 }
