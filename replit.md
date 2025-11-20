@@ -12,15 +12,18 @@ AlugaFácil is a SaaS platform for managing rental properties with automated con
 - Property inspection management (initial and final) (Schema ready, implementation pending)
 - Multi-role support (landlord, tenant, guarantor) ✅ (Fully implemented)
 
-**Current Implementation Status (November 2025):**
+**Current Implementation Status (November 20, 2025):**
 - ✅ Database schema fully implemented and synchronized
-- ✅ Custom email/password authentication system (replaced Replit Auth)
+- ✅ Custom email/password authentication system with session persistence
+- ✅ Session management bug fixed: cookies now properly configured and persisted
 - ✅ User authentication flow: Landing → Register/Login → Role Onboarding → Dashboard
-- ✅ Role-based access control (landlord vs tenant dashboards)
+- ✅ Role-based access control (landlord vs tenant dashboards) with deterministic cache updates
 - ✅ Backend API routes for properties, contracts, payments (CRUD operations)
 - ✅ Frontend prototypes for all main pages
 - ✅ Secure password hashing with bcrypt (salt rounds = 12)
 - ✅ Comprehensive error handling for duplicate email/CPF constraints
+- ✅ Production-ready CORS configuration with origin allowlist support
+- ✅ Debug logging system with environment-based toggling
 - 🚧 Object Storage integration prepared but not yet connected to UI
 - 🚧 OpenAI contract generation prepared but not yet implemented
 - 🚧 Mercado Pago integration schema ready but not yet implemented
@@ -51,7 +54,7 @@ Preferred communication style: Simple, everyday language.
 
 **API Design:** RESTful API structure with authentication middleware protecting all endpoints except the landing page. Endpoints follow `/api/*` convention.
 
-**Authentication:** Replit Auth using OpenID Connect (OIDC) with Passport.js strategy. Session management uses PostgreSQL-backed sessions via connect-pg-simple with 7-day session TTL. Authentication state is synchronized between server sessions and client-side React Query cache.
+**Authentication:** Custom email/password authentication system with bcrypt hashing (12 salt rounds). Session management uses PostgreSQL-backed sessions via express-session and connect-pg-simple with 7-day session TTL and explicit cookie configuration (name: "alugafacil.sid", path: "/", sameSite: "lax"). Authentication state is synchronized between server sessions and client-side React Query cache with deterministic refetch strategy.
 
 **Database ORM:** Drizzle ORM for type-safe database queries and schema management. Schema definitions use Zod for runtime validation through drizzle-zod integration.
 
@@ -62,14 +65,14 @@ Preferred communication style: Simple, everyday language.
 **Database:** PostgreSQL (via Neon serverless with WebSocket support)
 
 **Schema Design:**
-- **users** - Stores user profiles with role (landlord/tenant/fiador), synchronized with Replit Auth
+- **users** - Stores user profiles with role (landlord/tenant/fiador), email, passwordHash, CPF, phone, and names
 - **properties** - Property listings with status (available/rented/maintenance)
 - **contracts** - Contract lifecycle tracking with status flow (draft→generated→signed→active→terminated)
 - **payments** - Payment schedule with status tracking (pending→paid→overdue→canceled)
 - **documents** - File metadata for uploaded documents (identity, proof of income, contracts)
 - **onboardingData** - JSONB storage for tenant onboarding form data
 - **tenantSettings** - Landlord-specific settings including Mercado Pago credentials
-- **sessions** - Required for Replit Auth session persistence
+- **sessions** - Required for express-session persistence with connect-pg-simple
 
 **Key Design Decisions:**
 - Enum types for status fields ensure data consistency

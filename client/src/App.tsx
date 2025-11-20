@@ -101,7 +101,7 @@ function AuthenticatedLayout() {
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       <div className="flex h-screen w-full">
-        <AppSidebar userRole={user.role} userName={displayName} />
+        <AppSidebar userRole={user.role as "landlord" | "tenant"} userName={displayName} />
         <div className="flex flex-col flex-1 overflow-hidden">
           <header className="flex items-center justify-between p-4 border-b gap-4">
             <SidebarTrigger data-testid="button-sidebar-toggle" />

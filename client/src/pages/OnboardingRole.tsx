@@ -22,13 +22,19 @@ export default function OnboardingRole() {
       const response = await apiRequest("PATCH", "/api/user", data);
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       console.log('[OnboardingRole] Success! Updated user:', data);
+      
+      // Atualizar cache e aguardar refetch para garantir que useAuth obtenha dados atualizados
       queryClient.setQueryData(["/api/auth/user"], data);
+      await queryClient.refetchQueries({ queryKey: ["/api/auth/user"] });
+      
       toast({
         title: "Perfil atualizado!",
         description: "Seu perfil foi configurado com sucesso.",
       });
+      
+      // Redirecionar após cache estar atualizado (determinístico, sem race conditions)
       setLocation(selectedRole === "landlord" ? "/landlord" : "/tenant");
     },
     onError: (error: any) => {

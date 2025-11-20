@@ -18,10 +18,13 @@ app.use(express.urlencoded({ extended: false }));
 
 // CORS configuration to allow credentials (cookies)
 app.use((req, res, next) => {
-  const origin = req.headers.origin || req.headers.referer;
-  if (origin) {
+  const origin = req.headers.origin;
+  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
+  
+  // In development, allow any origin. In production, use allowlist.
+  if (process.env.NODE_ENV === 'development' || (origin && allowedOrigins.includes(origin))) {
     res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Origin', origin || '*');
     res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,PATCH,OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie');
   }

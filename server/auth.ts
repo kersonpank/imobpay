@@ -50,18 +50,26 @@ export function isAuthenticated(
   res: Response,
   next: NextFunction
 ): void {
-  console.log('[isAuthenticated] Path:', req.path);
-  console.log('[isAuthenticated] Session ID:', req.sessionID);
-  console.log('[isAuthenticated] Session data:', JSON.stringify(req.session));
-  console.log('[isAuthenticated] Cookie header:', req.headers.cookie);
+  const DEBUG_AUTH = process.env.DEBUG_AUTH === 'true' || process.env.NODE_ENV === 'development';
+  
+  if (DEBUG_AUTH) {
+    console.log('[isAuthenticated] Path:', req.path);
+    console.log('[isAuthenticated] Session ID:', req.sessionID);
+    console.log('[isAuthenticated] Session data:', JSON.stringify(req.session));
+    console.log('[isAuthenticated] Cookie header:', req.headers.cookie);
+  }
   
   if (!req.session?.userId) {
-    console.log('[isAuthenticated] ❌ No userId in session - returning 401');
+    if (DEBUG_AUTH) {
+      console.log('[isAuthenticated] ❌ No userId in session - returning 401');
+    }
     res.status(401).json({ message: "Unauthorized" });
     return;
   }
   
-  console.log('[isAuthenticated] ✅ Authenticated userId:', req.session.userId);
+  if (DEBUG_AUTH) {
+    console.log('[isAuthenticated] ✅ Authenticated userId:', req.session.userId);
+  }
   (req as AuthenticatedRequest).userId = req.session.userId;
   next();
 }
