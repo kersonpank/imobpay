@@ -5,9 +5,47 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Upload, X } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
 export function PropertyForm() {
   const [images, setImages] = useState<string[]>([]);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [address, setAddress] = useState("");
+  const [zipcode, setZipcode] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [rentValue, setRentValue] = useState("");
+  const [status, setStatus] = useState<"available" | "rented" | "maintenance">("available");
+  
+  const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/properties", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Sucesso!",
+        description: "Imóvel criado com sucesso.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+      setLocation("/landlord/properties");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao criar imóvel",
+        description: error.message || "Não foi possível criar o imóvel. Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleAddImage = () => {
     console.log("Image upload triggered");
@@ -19,23 +57,46 @@ export function PropertyForm() {
     setImages(images.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = () => {
-    console.log("Property form submitted");
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!title || !address || !city || !state || !zipcode || !rentValue) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Por favor, preencha todos os campos obrigatórios.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    mutation.mutate({
+      title,
+      description,
+      address,
+      city,
+      state,
+      zipcode,
+      rentValue: parseFloat(rentValue),
+      status,
+    });
   };
 
   return (
-    <div className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>Informações Básicas</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="titulo">Título do Imóvel</Label>
+            <Label htmlFor="titulo">Título do Imóvel *</Label>
             <Input
               id="titulo"
               placeholder="Ex: Casa 3 quartos com quintal"
               data-testid="input-titulo"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
             />
           </div>
           <div className="space-y-2">
@@ -45,52 +106,85 @@ export function PropertyForm() {
               placeholder="Descreva as características do imóvel..."
               rows={4}
               data-testid="input-descricao"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="endereco">Endereço Completo</Label>
+              <Label htmlFor="endereco">Endereço Completo *</Label>
               <Input
                 id="endereco"
                 placeholder="Rua, Número, Bairro"
                 data-testid="input-endereco"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="cep">CEP</Label>
+              <Label htmlFor="cep">CEP *</Label>
               <Input
                 id="cep"
                 placeholder="00000-000"
                 data-testid="input-cep"
+                value={zipcode}
+                onChange={(e) => setZipcode(e.target.value)}
+                required
               />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="cidade">Cidade</Label>
+              <Label htmlFor="cidade">Cidade *</Label>
               <Input
                 id="cidade"
                 placeholder="São Paulo"
                 data-testid="input-cidade"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="estado">Estado</Label>
+              <Label htmlFor="estado">Estado *</Label>
               <Input
                 id="estado"
                 placeholder="SP"
                 data-testid="input-estado"
+                value={state}
+                onChange={(e) => setState(e.target.value.toUpperCase())}
+                maxLength={2}
+                required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="valor">Valor do Aluguel (R$)</Label>
+              <Label htmlFor="valor">Valor do Aluguel (R$) *</Label>
               <Input
                 id="valor"
                 type="number"
                 placeholder="1500"
                 data-testid="input-valor"
+                value={rentValue}
+                onChange={(e) => setRentValue(e.target.value)}
+                min="0"
+                step="0.01"
+                required
               />
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="status">Status</Label>
+            <select
+              id="status"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+              value={status}
+              onChange={(e) => setStatus(e.target.value as any)}
+            >
+              <option value="available">Disponível</option>
+              <option value="rented">Alugado</option>
+              <option value="maintenance">Em Manutenção</option>
+            </select>
           </div>
         </CardContent>
       </Card>
@@ -128,13 +222,22 @@ export function PropertyForm() {
       </Card>
 
       <div className="flex justify-end gap-4">
-        <Button variant="outline" data-testid="button-cancel">
+        <Button 
+          type="button"
+          variant="outline" 
+          data-testid="button-cancel"
+          onClick={() => setLocation("/landlord/properties")}
+        >
           Cancelar
         </Button>
-        <Button onClick={handleSubmit} data-testid="button-save">
-          Salvar Imóvel
+        <Button 
+          type="submit" 
+          data-testid="button-save"
+          disabled={mutation.isPending}
+        >
+          {mutation.isPending ? "Salvando..." : "Salvar Imóvel"}
         </Button>
       </div>
-    </div>
+    </form>
   );
 }

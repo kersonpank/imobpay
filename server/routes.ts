@@ -3,6 +3,9 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, hashPassword, comparePassword, type AuthenticatedRequest } from "./auth";
 import { registerUserSchema, loginUserSchema, updateUserSchema } from "@shared/schema";
+import { uploadSingle, uploadMultiple, getFileUrl } from "./upload";
+import path from "path";
+import express from "express";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication
@@ -244,6 +247,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Gerar contrato com IA
+  app.post('/api/contracts/:id/generate', isAuthenticated, async (req, res) => {
+    try {
+      const contractId = req.params.id;
+      const contract = await storage.getContract(contractId);
+      
+      if (!contract) {
+        return res.status(404).json({ message: "Contract not found" });
+      }
+
+      // Buscar dados do locador
+      const landlord = await storage.getUser(contract.landlordId);
+      if (!landlord) {
+        return res.status(404).json({ message: "Landlord not found" });
+      }
+
+      // Buscar dados do locatário
+      const tenant = await storage.getUser(contract.tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+
+      // Buscar dados do imóvel
+      const property = await storage.getProperty(contract.propertyId);
+      if (!property) {
+        return res.status(404).json({ message: "Property not found" });
+      }
+
+      // Buscar dados do fiador (se houver)
+      let guarantor = null;
+      if (contract.guarantorId) {
+        guarantor = await storage.getUser(contract.guarantorId);
+      }
+
+      // Importar serviço de geração de contratos
+      const { generateContractWithAI } = await import("./services/contract-generator");
+
+      // Preparar dados para geração
+      const contractData = {
+        // Locador
+        landlordName: `${landlord.firstName || ""} ${landlord.lastName || ""}`.trim() || landlord.email,
+        landlordCpf: landlord.cpf || "",
+        landlordAddress: "", // Pode ser adicionado ao schema depois
+        landlordCity: property.city,
+        landlordState: property.state,
+
+        // Locatário
+        tenantName: `${tenant.firstName || ""} ${tenant.lastName || ""}`.trim() || tenant.email,
+        tenantCpf: tenant.cpf || "",
+        tenantAddress: "", // Pode ser adicionado ao schema depois
+        tenantStateCivil: "", // Pode ser adicionado ao schema depois
+        tenantProfession: "", // Pode ser adicionado ao schema depois
+
+        // Fiador
+        guarantorName: guarantor ? `${guarantor.firstName || ""} ${guarantor.lastName || ""}`.trim() || guarantor.email : undefined,
+        guarantorCpf: guarantor?.cpf || undefined,
+        guarantorAddress: "",
+
+        // Imóvel
+        propertyAddress: property.address,
+        propertyCity: property.city,
+        propertyState: property.state,
+        propertyZipcode: property.zipcode,
+        propertyDescription: property.description || property.title,
+
+        // Contrato
+        monthlyRent: parseFloat(contract.monthlyRent),
+        dueDay: contract.dueDay,
+        startDate: new Date(contract.startDate),
+        endDate: new Date(contract.endDate),
+        periodMonths: contract.adjustmentIndex ? Math.ceil((new Date(contract.endDate).getTime() - new Date(contract.startDate).getTime()) / (1000 * 60 * 60 * 24 * 30)) : 12,
+        adjustmentIndex: contract.adjustmentIndex || "IPCA",
+
+        // Garantia
+        guaranteeType: contract.guaranteeType,
+        guaranteeDetails: contract.guaranteeDetails as any || null,
+
+        // Outros
+        lateFeePercent: 2,
+        interestPercent: 1,
+        cancellationFee: "multa proporcional ao tempo restante",
+        iptuResponsible: "LOCADOR",
+        utilitiesResponsible: "LOCATÁRIO",
+        condominiumResponsible: "LOCATÁRIO",
+        taxesResponsible: "LOCATÁRIO",
+        jurisdiction: property.city || "Comarca de origem do imóvel",
+      };
+
+      // Gerar contrato
+      const { contractText, metadata } = await generateContractWithAI(contractData);
+
+      // Atualizar contrato com texto gerado
+      const updatedContract = await storage.updateContract(contractId, {
+        contractText,
+        status: "generated",
+      });
+
+      // Gerar pagamentos baseado nos metadados
+      if (metadata.installments && metadata.installments.length > 0) {
+        for (const installment of metadata.installments) {
+          await storage.createPayment({
+            contractId: contractId,
+            dueDate: new Date(installment.dueDate),
+            amount: installment.amount.toString(),
+            status: "pending",
+          });
+        }
+      }
+
+      res.json({
+        contract: updatedContract,
+        metadata,
+      });
+    } catch (error: any) {
+      console.error("Error generating contract:", error);
+      if (error.message?.includes("OPENAI_API_KEY")) {
+        return res.status(500).json({ 
+          message: "Configuração de IA não encontrada. Configure OPENAI_API_KEY no .env" 
+        });
+      }
+      res.status(500).json({ message: error.message || "Failed to generate contract" });
+    }
+  });
+
   app.patch('/api/contracts/:id', isAuthenticated, async (req, res) => {
     try {
       const contract = await storage.updateContract(req.params.id, req.body);
@@ -316,6 +443,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to save settings" });
     }
   });
+
+  // Documents routes
+  app.get('/api/documents', isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as AuthenticatedRequest).userId!;
+      const contractId = req.query.contractId as string | undefined;
+      
+      let documents;
+      if (contractId) {
+        documents = await storage.getDocumentsByContract(contractId);
+      } else {
+        documents = await storage.getDocumentsByUser(userId);
+      }
+      
+      res.json(documents);
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+      res.status(500).json({ message: "Failed to fetch documents" });
+    }
+  });
+
+  app.post('/api/documents', isAuthenticated, uploadSingle, async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "Nenhum arquivo enviado" });
+      }
+
+      const userId = (req as AuthenticatedRequest).userId!;
+      const { type, contractId, name } = req.body;
+
+      // Determinar categoria do arquivo baseado no tipo
+      let category: "documents" | "properties" | "contracts" | "inspections" = "documents";
+      if (type === "property_photo") category = "properties";
+      else if (type === "contract") category = "contracts";
+      else if (type === "inspection") category = "inspections";
+
+      const fileUrl = getFileUrl(req.file.filename, category);
+
+      const document = await storage.createDocument({
+        userId,
+        contractId: contractId || null,
+        type: type || "document",
+        name: name || req.file.originalname,
+        path: fileUrl,
+      });
+
+      res.json(document);
+    } catch (error: any) {
+      console.error("Error uploading document:", error);
+      if (error.message?.includes("Tipo de arquivo não permitido")) {
+        return res.status(400).json({ message: error.message });
+      }
+      res.status(500).json({ message: "Failed to upload document" });
+    }
+  });
+
+  // Upload múltiplos arquivos (ex: fotos de propriedade)
+  app.post('/api/upload/multiple', isAuthenticated, uploadMultiple, async (req, res) => {
+    try {
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      const userId = (req as AuthenticatedRequest).userId!;
+      const { type, contractId } = req.body;
+
+      const uploadedFiles = [];
+
+      // Processar fotos de propriedade
+      if (files.photos) {
+        for (const file of files.photos) {
+          const fileUrl = getFileUrl(file.filename, "properties");
+          const document = await storage.createDocument({
+            userId,
+            contractId: contractId || null,
+            type: type || "property_photo",
+            name: file.originalname,
+            path: fileUrl,
+          });
+          uploadedFiles.push(document);
+        }
+      }
+
+      // Processar documentos
+      if (files.documents) {
+        for (const file of files.documents) {
+          const fileUrl = getFileUrl(file.filename, "documents");
+          const document = await storage.createDocument({
+            userId,
+            contractId: contractId || null,
+            type: type || "document",
+            name: file.originalname,
+            path: fileUrl,
+          });
+          uploadedFiles.push(document);
+        }
+      }
+
+      res.json({ files: uploadedFiles, count: uploadedFiles.length });
+    } catch (error: any) {
+      console.error("Error uploading files:", error);
+      res.status(500).json({ message: "Failed to upload files" });
+    }
+  });
+
+  // Servir arquivos estáticos da pasta uploads
+  const uploadsPath = path.resolve(import.meta.dirname, "..", "uploads");
+  app.use("/uploads", express.static(uploadsPath));
 
   const httpServer = createServer(app);
   return httpServer;

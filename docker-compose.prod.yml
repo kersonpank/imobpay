@@ -1,0 +1,91 @@
+services:
+  # Banco de dados PostgreSQL (produção)
+  postgres:
+    image: postgres:16-alpine
+    container_name: imobpaga-postgres-prod
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-imobpaga}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-imobpaga}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+      # Backup automático (opcional)
+      - ./backups:/backups
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-imobpaga}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - imobpaga-prod-network
+    restart: always
+    # Segurança adicional em produção
+    # command: postgres -c max_connections=200 -c shared_buffers=256MB
+
+  # Aplicação ImobPaga (produção)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: imobpaga-app-prod
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-imobpaga}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-imobpaga}
+      SESSION_SECRET: ${SESSION_SECRET}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      DEBUG_AUTH: ${DEBUG_AUTH:-false}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      # Mercado Pago (quando implementado)
+      MERCADO_PAGO_PUBLIC_KEY: ${MERCADO_PAGO_PUBLIC_KEY:-}
+      MERCADO_PAGO_ACCESS_TOKEN: ${MERCADO_PAGO_ACCESS_TOKEN:-}
+    volumes:
+      - ./uploads:/app/uploads
+      # Backup de uploads
+      - ./backups/uploads:/app/backups
+    ports:
+      - "${PORT:-5000}:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - imobpaga-prod-network
+    restart: always
+    # Healthcheck para produção
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Nginx (opcional - reverse proxy)
+  nginx:
+    image: nginx:alpine
+    container_name: imobpaga-nginx
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - app
+    networks:
+      - imobpaga-prod-network
+    restart: always
+    profiles:
+      - with-nginx
+
+volumes:
+  postgres_prod_data:
+    driver: local
+
+networks:
+  imobpaga-prod-network:
+    driver: bridge
+

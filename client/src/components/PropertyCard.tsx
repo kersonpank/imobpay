@@ -27,6 +27,9 @@ export function PropertyCard({
     maintenance: { label: "Manutenção", variant: "destructive" as const },
   };
 
+  // Garantir que rentValue seja número
+  const rentValueNum = typeof rentValue === 'string' ? parseFloat(rentValue) : rentValue;
+
   return (
     <Card className="overflow-hidden hover-elevate" data-testid="card-property">
       <div className="aspect-video bg-muted relative overflow-hidden">
@@ -57,7 +60,7 @@ export function PropertyCard({
         <div className="flex items-center gap-2">
           <DollarSign className="h-5 w-5 text-primary" />
           <span className="text-2xl font-semibold" data-testid="text-rent-value">
-            R$ {rentValue.toLocaleString("pt-BR")}
+            R$ {rentValueNum.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
           <span className="text-sm text-muted-foreground">/mês</span>
         </div>
