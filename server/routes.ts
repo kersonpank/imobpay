@@ -67,10 +67,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(500).json({ 
         message: errorMessage,
-        ...(process.env.NODE_ENV === 'development' && { 
+        ...(process.env.NODE_ENV === 'development' ? { 
           error: error.message,
           stack: error.stack 
-        })
+        } : {})
       });
     }
   });
