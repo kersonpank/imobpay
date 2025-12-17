@@ -185,3 +185,4 @@ SELECT id, title, address, city, state, rent_value, status FROM properties ORDER
 
 
 
+

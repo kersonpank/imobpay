@@ -59,3 +59,4 @@ Write-Host "  docker compose -f $ComposeFile exec postgres psql -U imobpaga -d i
 
 
 
+

@@ -85,3 +85,4 @@ ALLOWED_ORIGINS=https://seu-dominio.com
 
 **💡 Dica**: Consulte o [GUIA-DEPLOY-EASYPANEL.md](./GUIA-DEPLOY-EASYPANEL.md) para instruções detalhadas passo a passo.
 
+
