@@ -25,7 +25,7 @@ export async function setupAuth(app: Express): Promise<void> {
       store: new PgSession({
         conString: process.env.DATABASE_URL,
         tableName: 'sessions',
-        createTableIfMissing: false,
+        createTableIfMissing: true, // Criar tabela se não existir
       }),
       secret: process.env.SESSION_SECRET || 'default-secret-change-in-production',
       resave: false,

@@ -39,6 +39,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error registering user:", error);
+      console.error("Error stack:", error.stack);
+      console.error("Error details:", {
+        name: error.name,
+        code: error.code,
+        message: error.message,
+        constraint: error.constraint,
+      });
+      
       if (error.name === 'ZodError') {
         return res.status(400).json({ message: error.errors[0].message });
       }
@@ -51,7 +59,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         return res.status(409).json({ message: "Dados já cadastrados" });
       }
-      res.status(500).json({ message: "Erro ao criar conta" });
+      
+      // Em desenvolvimento, retornar mais detalhes do erro
+      const errorMessage = process.env.NODE_ENV === 'development' 
+        ? `Erro ao criar conta: ${error.message || 'Erro desconhecido'}`
+        : "Erro ao criar conta";
+      
+      res.status(500).json({ 
+        message: errorMessage,
+        ...(process.env.NODE_ENV === 'development' && { 
+          error: error.message,
+          stack: error.stack 
+        })
+      });
     }
   });
 

@@ -3,6 +3,9 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Instalar ferramentas de build necessárias para bcrypt e outras dependências nativas
+RUN apk add --no-cache python3 make g++
+
 # Copiar arquivos de dependências
 COPY package*.json ./
 COPY tsconfig.json ./
@@ -21,6 +24,9 @@ RUN npm run build
 FROM node:20-alpine
 
 WORKDIR /app
+
+# Instalar ferramentas de build necessárias para bcrypt e outras dependências nativas
+RUN apk add --no-cache python3 make g++
 
 # Instalar apenas dependências de produção
 COPY package*.json ./
